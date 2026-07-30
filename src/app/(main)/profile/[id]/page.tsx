@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { getSellerById, getSellerSlugs } from '@/lib/sellers';
 import { SellerBreadcrumb } from '@/components/seller/SellerBreadcrumb';
 import { SellerHero } from '@/components/seller/SellerHero';
 import { SellerStats } from '@/components/seller/SellerStats';
@@ -7,17 +6,14 @@ import { SellerAbout } from '@/components/seller/SellerAbout';
 import { SellerSkills } from '@/components/seller/SellerSkills';
 import { ProfileGigsList } from '@/components/seller/ProfileGigsList';
 import { ReviewsList } from '@/components/seller/ReviewsList';
+import { getPublicSellerById } from '@/lib/marketplace/repository';
 import type { Metadata } from 'next';
-
-export function generateStaticParams() {
-  return getSellerSlugs();
-}
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const seller = getSellerById(Number(id));
+  const seller = await getPublicSellerById(Number(id));
   if (!seller) return {};
   return {
     title: `${seller.name} - Profile | BooSend Experts`,
@@ -31,7 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProfilePage({ params }: PageProps) {
   const { id } = await params;
-  const seller = getSellerById(Number(id));
+  const seller = await getPublicSellerById(Number(id));
   if (!seller) notFound();
 
   return (

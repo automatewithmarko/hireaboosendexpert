@@ -9,6 +9,26 @@ interface OrderCardProps {
   onLeaveReview?: (orderId: number) => void;
 }
 
+function getOrderStatusLabel(status: Order['status']) {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'in_progress':
+      return 'In Progress';
+    case 'delivered':
+      return 'Delivered';
+    case 'revision_requested':
+      return 'Revision Requested';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'disputed':
+      return 'Disputed';
+    case 'completed':
+    default:
+      return 'Completed';
+  }
+}
+
 export function OrderCard({ order, seller }: OrderCardProps) {
   return (
     <Link href={`/orders/${order.id}`} className="order-card">
@@ -21,9 +41,7 @@ export function OrderCard({ order, seller }: OrderCardProps) {
           </div>
         </div>
         <div className={`order-card-status order-card-status--${order.status}`}>
-          {order.status === 'pending' && 'Pending'}
-          {order.status === 'in_progress' && 'In Progress'}
-          {order.status === 'completed' && 'Completed'}
+          {getOrderStatusLabel(order.status)}
         </div>
       </div>
 

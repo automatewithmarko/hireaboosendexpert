@@ -25,7 +25,15 @@ export function ImageSlideshow({ gigs }: { gigs: Gig[] }) {
     <div className="slideshow">
       <div className="slideshow-track" style={{ transform: `translateX(-${current * 100}%)` }}>
         {gigs.map((gig, i) => (
-          <div key={i} className="slideshow-slide" style={{ background: gig.gradient }}>
+          <div
+            key={i}
+            className="slideshow-slide"
+            style={{
+              background: gig.imageUrl
+                ? `linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.42)), url(${gig.imageUrl}) center/cover`
+                : gig.gradient,
+            }}
+          >
             <div className="slideshow-slide-content">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />

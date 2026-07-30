@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { getAllGigs } from '@/lib/sellers';
 import type { GigCategory, GigWithSeller } from '@/types';
 
 export type SortOption = 'recommended' | 'price-asc' | 'price-desc' | 'delivery' | 'rating';
@@ -13,8 +12,8 @@ function getDeliveryDays(gig: GigWithSeller): number {
   return match ? parseInt(match[1], 10) : 999;
 }
 
-export function useGigFilters() {
-  const allGigs = useMemo(() => getAllGigs(), []);
+export function useGigFilters(initialGigs: GigWithSeller[]) {
+  const allGigs = useMemo(() => initialGigs, [initialGigs]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<GigCategory | 'all'>('all');
 

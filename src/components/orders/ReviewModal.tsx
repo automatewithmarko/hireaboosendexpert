@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import { PlaceholderAvatar } from '@/components/shared/PlaceholderAvatar';
+import { submitOrderReviewAction } from '@/lib/marketplace/actions';
 import type { Order, Seller, OrderReview } from '@/types';
 
 interface ReviewModalProps {
@@ -15,13 +16,30 @@ export function ReviewModal({ order, seller, onSubmit, onClose }: ReviewModalPro
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [text, setText] = useState('');
+  const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   const handleSubmit = useCallback(() => {
     if (rating === 0 || text.trim() === '') return;
-    onSubmit(order.id, {
-      rating,
-      text: text.trim(),
-      date: 'Just now',
+    setError('');
+
+    startTransition(async () => {
+      const result = await submitOrderReviewAction({
+        orderId: order.id,
+        rating,
+        text: text.trim(),
+      });
+
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+
+      onSubmit(order.id, {
+        rating,
+        text: text.trim(),
+        date: 'Just now',
+      });
     });
   }, [rating, text, order.id, onSubmit]);
 
@@ -74,12 +92,14 @@ export function ReviewModal({ order, seller, onSubmit, onClose }: ReviewModalPro
           />
         </div>
 
+        {error && <div className="signin-error">{error}</div>}
+
         <button
           className="review-modal-submit"
-          disabled={rating === 0 || text.trim() === ''}
+          disabled={rating === 0 || text.trim() === '' || isPending}
           onClick={handleSubmit}
         >
-          Submit Review
+          {isPending ? 'Submitting...' : 'Submit Review'}
         </button>
       </div>
     </div>

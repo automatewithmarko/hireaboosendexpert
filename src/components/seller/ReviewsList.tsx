@@ -66,24 +66,32 @@ export function ReviewsList({ reviews, showBreakdown }: ReviewsListProps) {
     );
   });
 
+  const emptyState = reviews.length === 0 ? (
+    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '1rem 0' }}>
+      No reviews yet. Reviews will appear here once buyers complete orders.
+    </p>
+  ) : null;
+
   if (!showBreakdown) {
     return (
       <div className="provider-section">
-        <h3>Reviews</h3>
-        {reviewItems}
+        <h3>Reviews ({reviews.length})</h3>
+        {emptyState || reviewItems}
       </div>
     );
   }
 
   return (
     <div className="provider-section">
-      <h3>Reviews</h3>
-      <div className="reviews-with-breakdown">
-        <ReviewBreakdown reviews={reviews} />
-        <div className="reviews-list-column">
-          {reviewItems}
+      <h3>Reviews ({reviews.length})</h3>
+      {emptyState || (
+        <div className="reviews-with-breakdown">
+          <ReviewBreakdown reviews={reviews} />
+          <div className="reviews-list-column">
+            {reviewItems}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

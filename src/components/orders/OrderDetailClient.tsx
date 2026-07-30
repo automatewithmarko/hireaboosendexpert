@@ -1,27 +1,72 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import Link from 'next/link';
 import { PlaceholderAvatar } from '@/components/shared/PlaceholderAvatar';
 import { StarRating } from '@/components/shared/StarRating';
 import { ReviewModal } from './ReviewModal';
-import { getOrderTimeline } from '@/data/orders';
+import {
+  startOrderAction,
+  deliverOrderAction,
+  acceptDeliveryAction,
+  requestRevisionAction,
+} from '@/lib/marketplace/actions';
 import type { Order, Seller, OrderReview, OrderTimelineEvent } from '@/types';
 
 interface OrderDetailClientProps {
   order: Order;
   seller: Seller;
+  timeline: OrderTimelineEvent[];
+  viewerRole: 'buyer' | 'expert';
 }
 
-export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailClientProps) {
+function getOrderStatusLabel(status: Order['status']) {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'in_progress':
+      return 'In Progress';
+    case 'delivered':
+      return 'Delivered';
+    case 'revision_requested':
+      return 'Revision Requested';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'disputed':
+      return 'Disputed';
+    case 'completed':
+    default:
+      return 'Completed';
+  }
+}
+
+function getPaymentBadge(status: string | undefined) {
+  switch (status) {
+    case 'paid':
+      return <span className="payment-badge payment-badge--paid">Paid</span>;
+    case 'released':
+      return <span className="payment-badge payment-badge--released">Released</span>;
+    case 'pending':
+      return <span className="payment-badge payment-badge--pending">Processing</span>;
+    case 'refunded':
+      return <span className="payment-badge payment-badge--refunded">Refunded</span>;
+    default:
+      return null;
+  }
+}
+
+export function OrderDetailClient({ order: initialOrder, seller, timeline, viewerRole }: OrderDetailClientProps) {
   const [order, setOrder] = useState(initialOrder);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
-
-  const timeline = getOrderTimeline(order);
+  const [deliveryMessage, setDeliveryMessage] = useState('');
+  const [revisionMessage, setRevisionMessage] = useState('');
+  const [showDeliverForm, setShowDeliverForm] = useState(false);
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const pkg = seller.packages.find((p) => p.name === order.packageName) ?? seller.packages[0];
-  const serviceFee = Math.round(order.price * 0.1);
-  const total = order.price + serviceFee;
+  const serviceFee = order.serviceFee ?? Math.round(order.price * 0.1);
+  const total = order.total ?? order.price + serviceFee;
 
   const handleAction = useCallback((message: string) => {
     setActionFeedback(message);
@@ -32,6 +77,58 @@ export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailCl
     setOrder((prev) => ({ ...prev, review }));
     setShowReviewModal(false);
   }, []);
+
+  const handleStartWork = useCallback(() => {
+    startTransition(async () => {
+      const result = await startOrderAction(order.id);
+      if (result.error) {
+        handleAction(result.error);
+        return;
+      }
+      setOrder((prev) => ({ ...prev, status: 'in_progress' }));
+      handleAction('You have started working on this order.');
+    });
+  }, [order.id, handleAction]);
+
+  const handleDeliver = useCallback(() => {
+    startTransition(async () => {
+      const result = await deliverOrderAction({ orderId: order.id, message: deliveryMessage });
+      if (result.error) {
+        handleAction(result.error);
+        return;
+      }
+      setOrder((prev) => ({ ...prev, status: 'delivered', deliveryStatus: 'submitted' }));
+      setShowDeliverForm(false);
+      setDeliveryMessage('');
+      handleAction('Delivery submitted! Waiting for buyer to review.');
+    });
+  }, [order.id, deliveryMessage, handleAction]);
+
+  const handleAcceptDelivery = useCallback(() => {
+    startTransition(async () => {
+      const result = await acceptDeliveryAction(order.id);
+      if (result.error) {
+        handleAction(result.error);
+        return;
+      }
+      setOrder((prev) => ({ ...prev, status: 'completed', deliveryStatus: 'accepted', paymentStatus: 'released' }));
+      handleAction('Delivery accepted! You can now leave a review.');
+    });
+  }, [order.id, handleAction]);
+
+  const handleRequestRevision = useCallback(() => {
+    startTransition(async () => {
+      const result = await requestRevisionAction({ orderId: order.id, message: revisionMessage });
+      if (result.error) {
+        handleAction(result.error);
+        return;
+      }
+      setOrder((prev) => ({ ...prev, status: 'revision_requested', deliveryStatus: 'revision_requested' }));
+      setShowRevisionForm(false);
+      setRevisionMessage('');
+      handleAction('Revision requested. The expert will review your feedback.');
+    });
+  }, [order.id, revisionMessage, handleAction]);
 
   return (
     <div className="order-detail">
@@ -59,9 +156,7 @@ export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailCl
             <div className="order-detail-header-top">
               <h1 className="order-detail-order-number">#{order.orderNumber}</h1>
               <div className={`order-card-status order-card-status--${order.status}`}>
-                {order.status === 'pending' && 'Pending'}
-                {order.status === 'in_progress' && 'In Progress'}
-                {order.status === 'completed' && 'Completed'}
+                {getOrderStatusLabel(order.status)}
               </div>
             </div>
             <div className="order-detail-dates">
@@ -92,26 +187,28 @@ export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailCl
                 </div>
                 <div className="order-detail-package-row">
                   <span className="order-detail-package-label">Delivery Time</span>
-                  <span className="order-detail-package-value">{pkg.delivery}</span>
+                  <span className="order-detail-package-value">{pkg?.delivery ?? 'Flexible'}</span>
                 </div>
                 <div className="order-detail-package-row">
                   <span className="order-detail-package-label">Revisions</span>
-                  <span className="order-detail-package-value">{pkg.revisions}</span>
+                  <span className="order-detail-package-value">{pkg?.revisions ?? 1}</span>
                 </div>
               </div>
-              <div className="order-detail-features">
-                <span className="order-detail-features-title">What&apos;s Included</span>
-                <ul className="order-detail-features-list">
-                  {pkg.features.map((f) => (
-                    <li key={f}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                        <path d="M5 12l5 5L20 7" />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {pkg && pkg.features.length > 0 && (
+                <div className="order-detail-features">
+                  <span className="order-detail-features-title">What&apos;s Included</span>
+                  <ul className="order-detail-features-list">
+                    {pkg.features.map((f) => (
+                      <li key={f}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M5 12l5 5L20 7" />
+                        </svg>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 
@@ -132,8 +229,8 @@ export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailCl
             </div>
           </div>
 
-          {/* Review Section - completed orders only */}
-          {order.status === 'completed' && (
+          {/* Review Section - completed orders, buyer only */}
+          {order.status === 'completed' && viewerRole === 'buyer' && (
             <div className="order-detail-review-section">
               <h2 className="order-detail-section-title">Your Review</h2>
               {order.review ? (
@@ -177,47 +274,133 @@ export function OrderDetailClient({ order: initialOrder, seller }: OrderDetailCl
             </div>
             <div className="order-detail-payment-method">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <rect x="1" y="4" width="22" height="16" rx="2" />
-                <path d="M1 10h22" />
+                <path d="M21 12V7H5a2 2 0 010-4h14v4" />
+                <path d="M3 5v14a2 2 0 002 2h16v-5" />
+                <path d="M18 12a2 2 0 000 4h4v-4h-4z" />
               </svg>
               <div>
-                <span className="order-detail-payment-card">Visa ending in 4242</span>
-                <span className="order-detail-payment-date">Paid on {order.orderDate}</span>
+                <span className="order-detail-payment-card">BooSend Wallet</span>
+                <span className="order-detail-payment-date">
+                  {order.paymentStatus ? getPaymentBadge(order.paymentStatus) : `Paid on ${order.orderDate}`}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Order Lifecycle Actions */}
           <div className="order-detail-actions">
+            {/* Expert actions */}
+            {viewerRole === 'expert' && order.status === 'pending' && (
+              <div className="order-lifecycle-actions">
+                <button
+                  className="order-lifecycle-btn order-lifecycle-btn--primary"
+                  onClick={handleStartWork}
+                  disabled={isPending}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  {isPending ? 'Starting...' : 'Start Working'}
+                </button>
+              </div>
+            )}
+
+            {viewerRole === 'expert' && (order.status === 'in_progress' || order.status === 'revision_requested') && (
+              <div className="order-lifecycle-actions">
+                {!showDeliverForm ? (
+                  <button
+                    className="order-lifecycle-btn order-lifecycle-btn--success"
+                    onClick={() => setShowDeliverForm(true)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M5 12l5 5L20 7" />
+                    </svg>
+                    Deliver Order
+                  </button>
+                ) : (
+                  <>
+                    <textarea
+                      className="order-deliver-textarea"
+                      value={deliveryMessage}
+                      onChange={(e) => setDeliveryMessage(e.target.value)}
+                      placeholder="Add a message about the delivery..."
+                    />
+                    <button
+                      className="order-lifecycle-btn order-lifecycle-btn--success"
+                      onClick={handleDeliver}
+                      disabled={isPending}
+                    >
+                      {isPending ? 'Delivering...' : 'Submit Delivery'}
+                    </button>
+                    <button
+                      className="order-lifecycle-btn order-lifecycle-btn--warning"
+                      onClick={() => setShowDeliverForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Buyer actions */}
+            {viewerRole === 'buyer' && order.status === 'delivered' && (
+              <div className="order-lifecycle-actions">
+                <button
+                  className="order-lifecycle-btn order-lifecycle-btn--success"
+                  onClick={handleAcceptDelivery}
+                  disabled={isPending}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                  {isPending ? 'Accepting...' : 'Accept Delivery'}
+                </button>
+                {!showRevisionForm ? (
+                  <button
+                    className="order-lifecycle-btn order-lifecycle-btn--warning"
+                    onClick={() => setShowRevisionForm(true)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M1 4v6h6M23 20v-6h-6" />
+                      <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
+                    </svg>
+                    Request Revision
+                  </button>
+                ) : (
+                  <>
+                    <textarea
+                      className="order-deliver-textarea"
+                      value={revisionMessage}
+                      onChange={(e) => setRevisionMessage(e.target.value)}
+                      placeholder="Describe what changes you need..."
+                    />
+                    <button
+                      className="order-lifecycle-btn order-lifecycle-btn--warning"
+                      onClick={handleRequestRevision}
+                      disabled={isPending || !revisionMessage.trim()}
+                    >
+                      {isPending ? 'Submitting...' : 'Submit Revision Request'}
+                    </button>
+                    <button
+                      className="order-lifecycle-btn order-lifecycle-btn--warning"
+                      onClick={() => setShowRevisionForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Common actions */}
             <h3 className="order-detail-actions-title">Need Help?</h3>
             <Link href="/inbox" className="order-detail-action-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg>
-              Contact Seller
+              {viewerRole === 'buyer' ? 'Contact Seller' : 'Contact Buyer'}
             </Link>
-            {order.status !== 'completed' ? (
-              <button
-                className="order-detail-action-btn order-detail-action-btn--danger"
-                onClick={() => handleAction('Cancellation request submitted. The seller will review your request within 24 hours.')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M15 9l-6 6M9 9l6 6" />
-                </svg>
-                Request to Cancel
-              </button>
-            ) : (
-              <button
-                className="order-detail-action-btn order-detail-action-btn--danger"
-                onClick={() => handleAction('Refund request submitted. Our team will review and respond within 48 hours.')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M3 10h10a5 5 0 010 10H9M3 10l4-4M3 10l4 4" />
-                </svg>
-                Request a Refund
-              </button>
-            )}
             <button
               className="order-detail-action-btn order-detail-action-btn--secondary"
               onClick={() => handleAction('Support ticket created. A team member will reach out to you shortly.')}

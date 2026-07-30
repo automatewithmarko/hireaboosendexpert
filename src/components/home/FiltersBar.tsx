@@ -285,7 +285,6 @@ export function FiltersBar({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <span className="results-info"><strong>{resultCount}</strong> services available</span>
         <div className="filter-dropdown-wrap" ref={sortDrop.ref}>
           <button className="sort-select-btn" onClick={() => sortDrop.setOpen(!sortDrop.open)}>
             {sortLabels[sortBy]}

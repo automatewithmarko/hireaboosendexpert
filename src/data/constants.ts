@@ -18,7 +18,7 @@ export const gradients = [
 ];
 
 export const avatarColors = [
-  '#5657EA', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#475569', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
   '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
   '#84cc16', '#e11d48', '#0ea5e9', '#a855f7', '#10b981', '#f43f5e',
 ];
@@ -27,7 +27,7 @@ export const platformColors: Record<string, string> = {
   ai: '#000',
   support: '#06b6d4',
   dm: '#ee2a7b',
-  setup: '#5657EA',
+  setup: '#475569',
 };
 
 export const platformNames: Record<string, string> = {

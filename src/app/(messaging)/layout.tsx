@@ -1,9 +1,9 @@
-import { Navbar } from '@/components/layout/Navbar';
+import { AppNavbar } from '@/components/layout/AppNavbar';
 
 export default function MessagingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <Navbar />
+      <AppNavbar />
       {children}
     </>
   );

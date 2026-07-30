@@ -3,8 +3,13 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { getAuthBrowserClient } from '@/lib/supabase/auth-browser';
 
-export function CustomerSignInPage() {
+interface CustomerSignInPageProps {
+  nextPath: string;
+}
+
+export function CustomerSignInPage({ nextPath }: CustomerSignInPageProps) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,7 +17,7 @@ export function CustomerSignInPage() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
 
@@ -26,19 +31,42 @@ export function CustomerSignInPage() {
       }
 
       setLoading(true);
-      setTimeout(() => {
-        router.push('/');
-      }, 800);
+      const auth = getAuthBrowserClient();
+      const { error: signInError } = await auth.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      router.push(nextPath);
+      router.refresh();
     },
-    [email, password, router],
+    [email, nextPath, password, router],
   );
 
-  const handleGoogleSignIn = useCallback(() => {
+  const handleGoogleSignIn = useCallback(async () => {
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      router.push('/');
-    }, 800);
-  }, [router]);
+
+    const auth = getAuthBrowserClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const { error: signInError } = await auth.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+    }
+  }, [nextPath]);
 
   return (
     <div className="customer-signin">

@@ -1,11 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import type { Package } from '@/types';
 
-export function PricingTable({ packages }: { packages: Package[] }) {
-  const [activeTab, setActiveTab] = useState(1);
+export function PricingTable({ packages, isOwnGig }: { packages: Package[]; isOwnGig?: boolean }) {
+  const [activeTab, setActiveTab] = useState(packages.length > 1 ? 1 : 0);
   const pkg = packages[activeTab];
+
+  if (!pkg) {
+    return null;
+  }
 
   const checkSvg = (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -54,7 +59,17 @@ export function PricingTable({ packages }: { packages: Package[] }) {
             <li key={f}>{checkSvg}{f}</li>
           ))}
         </ul>
-        <button className="pricing-tab-cta">Select {pkg.name}</button>
+        {isOwnGig ? (
+          <span className="pricing-tab-cta" style={{ opacity: 0.5, cursor: 'default', textAlign: 'center' }}>
+            This is your gig
+          </span>
+        ) : pkg.gigId && pkg.id ? (
+          <Link href={`/checkout/${pkg.gigId}?package=${pkg.id}`} className="pricing-tab-cta">
+            Select {pkg.name}
+          </Link>
+        ) : (
+          <button className="pricing-tab-cta">Select {pkg.name}</button>
+        )}
       </div>
     </div>
   );

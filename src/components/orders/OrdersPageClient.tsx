@@ -2,20 +2,25 @@
 
 import { useState } from 'react';
 import { OrderCard } from './OrderCard';
-import { getSellerById } from '@/lib/sellers';
-import { initialOrders } from '@/data/orders';
-import type { Order } from '@/types';
+import type { OrderWithSeller } from '@/types';
 
 type OrderTab = 'active' | 'past';
 
-export function OrdersPageClient() {
-  const [orders] = useState<Order[]>(() =>
-    initialOrders.map((o) => ({ ...o }))
+interface OrdersPageClientProps {
+  initialOrders: OrderWithSeller[];
+}
+
+export function OrdersPageClient({ initialOrders }: OrdersPageClientProps) {
+  const [orders] = useState<OrderWithSeller[]>(() =>
+    initialOrders.map(({ order, seller }) => ({
+      order: { ...order },
+      seller,
+    })),
   );
   const [activeTab, setActiveTab] = useState<OrderTab>('active');
 
-  const activeOrders = orders.filter((o) => o.status !== 'completed');
-  const pastOrders = orders.filter((o) => o.status === 'completed');
+  const activeOrders = orders.filter(({ order }) => order.status !== 'completed');
+  const pastOrders = orders.filter(({ order }) => order.status === 'completed');
   const displayedOrders = activeTab === 'active' ? activeOrders : pastOrders;
 
   return (
@@ -44,17 +49,13 @@ export function OrdersPageClient() {
 
       <div className="orders-list">
         {displayedOrders.length > 0 ? (
-          displayedOrders.map((order) => {
-            const seller = getSellerById(order.sellerId);
-            if (!seller) return null;
-            return (
-              <OrderCard
-                key={order.id}
-                order={order}
-                seller={seller}
-              />
-            );
-          })
+          displayedOrders.map(({ order, seller }) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              seller={seller}
+            />
+          ))
         ) : (
           <div className="orders-empty">
             {activeTab === 'active'

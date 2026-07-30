@@ -1,32 +1,41 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { OrderDetailClient } from '@/components/orders/OrderDetailClient';
-import { getOrderById, initialOrders } from '@/data/orders';
-import { getSellerById } from '@/lib/sellers';
+import { getCurrentUserContext } from '@/lib/auth/session';
+import { getOrderDetailById } from '@/lib/marketplace/repository';
 import type { Metadata } from 'next';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export function generateStaticParams() {
-  return initialOrders.map((o) => ({ id: String(o.id) }));
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { id } = await params;
-  const order = getOrderById(Number(id));
   return {
-    title: order ? `Order #${order.orderNumber} | BooSend Experts` : 'Order Not Found',
+    title: 'Order Details | BooSend Experts',
   };
 }
 
 export default async function OrderDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const order = getOrderById(Number(id));
-  if (!order) notFound();
+  const { user, marketplace } = await getCurrentUserContext();
+  if (!user || !marketplace) {
+    redirect(`/signin?next=/orders/${id}`);
+  }
 
-  const seller = getSellerById(order.sellerId);
-  if (!seller) notFound();
+  const detail = await getOrderDetailById(
+    Number(id),
+    marketplace.account.id,
+    marketplace.isAdmin,
+  );
+  if (!detail) notFound();
 
-  return <OrderDetailClient order={order} seller={seller} />;
+  const viewerRole = detail.order.sellerAccountId === marketplace.account.id ? 'expert' : 'buyer';
+
+  return (
+    <OrderDetailClient
+      order={detail.order}
+      seller={detail.seller}
+      timeline={detail.timeline}
+      viewerRole={viewerRole as 'buyer' | 'expert'}
+    />
+  );
 }
